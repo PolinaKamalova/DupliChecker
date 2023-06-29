@@ -1,0 +1,215 @@
+using System;
+using System.IO;
+using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.parser;
+using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
+using System.Data.SQLite;
+
+class DuplicateChecker
+{
+    static void Main()
+    {
+        string pdfFilePath = "path/to/your/file1.pdf";
+        
+        foreach(string pdfFilePath in pdfFilePaths){
+            foreach(string pdfFilePath2 in pdfFilePath){
+                if(!pdfFilePath1.pdfFilePath2){
+                    retrun AreThoseDuplicates(pdfFilePath);
+                }
+            }
+        }
+
+        string connectionString = "Data Source=duplicates.db;Version=3;";
+
+        using (SQLiteConnection connection = new SQLiteConnection(connectionString))
+        {
+            connection.Open();
+
+            string createTableQuery = "CREATE TABLE IF NOT EXISTS scifiles (id INTEGER, link TEXT, content TEXT, references TEXT, structure TEXT)";
+            using (SQLiteCommand command = new SQLiteCommand(createTableQuery, connection))
+            {
+                command.ExecuteNonQuery();
+            }
+        }
+
+        ListTheDuplicates(connectionString);
+
+    }
+
+    static string ListTheDuplicates(string connectionString){
+        using (SQLiteConnection connection = new SQLiteConnection(connectionString))
+        {
+            connection.Open();
+
+            string query = "SELECT context, references, structure, COUNT(*) as count " +
+                           "FROM scifiles " +
+                           "GROUP BY context, references, structure " +
+                           "HAVING count > 1";
+
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                using (SQLiteDataReader reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string link = reader["link"].ToString();
+                        int count = Convert.ToInt32(reader["count"]);
+
+                        Console.WriteLine($"Найдено {count} дубликатов работы по ссылке {link}");
+                    }
+                }
+            }
+
+            connection.Close();
+        }
+    }
+
+    static void InsertValuesIntoDatabase(string pdfFilePath, string connString){
+            int content = ExtractContentFromPdf(pdfFilePath);
+            string references = ExtractReferencesFromPdf(pdfFilePath);
+            string structure = FindDocumentStructure(pdfFilePath);
+
+            string insertQuery = "INSERT INTO scifiles (content, references, structure) VALUES (@content, @references, @structure)";
+
+            using (SQLiteConnection connection = new SQLiteConnection(connString))
+            {
+                connection.Open();
+                
+                using (SQLiteCommand command = new SQLiteCommand(insertQuery, connection))
+                {
+                    cmd.Parameters.AddWithValue("@content", content);
+                    cmd.Parameters.AddWithValue("@references", references);
+                    cmd.Parameters.AddWithValue("@structure", structure);
+                    
+                    cmd.ExecuteNonQuery(); 
+                }
+                
+                connection.Close();
+            }
+
+    }
+
+    static int ExtractContentFromPdf(string pdfFilePath)
+    {
+        using (PdfReader reader = new PdfReader(pdfFilePath))
+        {
+            int content = string.Empty;
+
+            for (int i = 1; i <= reader.NumberOfPages; i++)
+            {
+                SimpleTextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+                string currentPageText = PdfTextExtractor.GetTextFromPage(reader, i, strategy);
+                if (currentPageText.Contains("Содержание"))
+                {
+                    int startIndex = currentPageText.IndexOf("Содержание") + "Содержание".Length;
+                    int lineCount = 0;
+                    string[] lines = currentPageText.Split('\n');
+                    foreach (var line in lines)
+                    {
+                        if (!string.IsNullOrEmpty(line.Trim()))
+                        {
+                            lineCount++;
+                        }
+                    }
+
+                return lineCount;
+                }
+            }
+        }
+    }
+
+    static string ExtractReferencesFromPdf(string pdfFilePath)
+    {
+        using (PdfReader reader = new PdfReader(pdfFilePath))
+        {
+            string references = string.Empty;
+            int startPage = 1;
+            int endPage = reader.NumberOfPages;
+
+            for (int i = startPage; i <= endPage; i++)
+            {
+                SimpleTextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+                string currentPageText = PdfTextExtractor.GetTextFromPage(reader, i, strategy);
+
+                if (currentPageText.Contains("Список литературы"))
+                {
+                    int startIndex = currentPageText.IndexOf("Список литературы") + "Список литературы".Length;
+                    string referencesText = currentPageText.Substring(startIndex);
+                    references += referencesText;
+                }
+            }
+
+            return references;
+        }
+    }
+
+    static string FindDocumentStructure(string pdfFilePath)
+    {
+        
+        PdfReader reader = new PdfReader("input.pdf");
+
+        List<string> formulaList = new List<string>();
+        List<byte[]> imageList = new List<byte[]>();
+        int chapters = 0;
+        for (int pageNum = 1; pageNum <= reader.NumberOfPages; pageNum++)
+        {
+            string pageContent = PdfTextExtractor.GetTextFromPage(reader, pageNum);
+
+            string[] lines = pageContent.Split(new[] { "\n", "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+            string structure = "";
+
+            foreach (string line in lines)
+            {
+                if (line.Contains("$"))
+                {
+                    formulaList.Add(line);
+                     using (SHA256 sha256 = SHA256.Create())
+                                            {
+                                                hashLine = sha256.ComputeHash(line);
+                                            }
+                                            string f = BitConverter.ToString(hashLine).Replace("-", "").ToLower();
+                    structure += "f"+f;
+                }
+                else
+                {
+                    PdfObject obj = PdfReader.GetPdfObject(reader.GetPageN(pageNum).Get(PdfName.CONTENTS));
+                    if (obj != null && obj.IsStream())
+                    {
+                        PRStream stream = (PRStream)obj;
+                        if (stream.Contains(PdfName.XOBJECT))
+                        {
+                            PdfDictionary resources = (PdfDictionary)PdfReader.GetPdfObject(reader.GetPageN(pageNum).Get(PdfName.RESOURCES));
+                            PdfDictionary xobjects = (PdfDictionary)PdfReader.GetPdfObject(resources.Get(PdfName.XOBJECT));
+                            foreach (PdfName name in xobjects.Keys)
+                            {
+                                PdfObject o = xobjects.Get(name);
+                                if (o.IsIndirect())
+                                {
+                                    PdfDictionary xo = (PdfDictionary)PdfReader.GetPdfObject(o);
+                                    if (xo.Contains(PdfName.SUBTYPE) && xo.Get(PdfName.SUBTYPE).Equals(PdfName.IMAGE))
+                                    {
+                                        byte[] bytes = PdfReader.GetStreamBytes(stream);
+                                        imageList.Add(bytes);
+                                        using (SHA256 sha256 = SHA256.Create())
+                                            {
+                                                hashBytes = sha256.ComputeHash(data);
+                                            }
+                                            string i = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+
+                                        structure += "i"+i;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        reader.Close();
+        return structure;
+    }
+
+}
