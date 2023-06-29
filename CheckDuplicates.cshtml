@@ -1,0 +1,19 @@
+﻿@model List<string>
+
+<h2>Результаты проверки на дубликаты</h2>
+
+@if (Model.Any())
+{
+    <ul>
+        @foreach (var duplicate in Model)
+        {
+            <li>@duplicate</li>
+        }
+    </ul>
+}
+else
+{
+    <p>Дубликаты не найдены.</p>
+}
+
+@Html.ActionLink("Вернуться", "Index", "Home", null, new { @class = "btn btn-primary" })
